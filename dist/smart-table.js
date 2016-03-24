@@ -1,7 +1,3 @@
-/** 
-* @version 2.1.8
-* @license MIT
-*/
 (function (ng, undefined){
     'use strict';
 
@@ -260,77 +256,6 @@ ng.module('smart-table')
   });
 
 ng.module('smart-table')
-  .directive('stSearch', ['stConfig', '$timeout','$parse', function (stConfig, $timeout, $parse) {
-    return {
-      require: '^stTable',
-      link: function (scope, element, attr, ctrl) {
-        var tableCtrl = ctrl;
-        var promise = null;
-        var throttle = attr.stDelay || stConfig.search.delay;
-        var event = attr.stInputEvent || stConfig.search.inputEvent;
-
-        attr.$observe('stSearch', function (newValue, oldValue) {
-          var input = element[0].value;
-          if (newValue !== oldValue && input) {
-            ctrl.tableState().search = {};
-            tableCtrl.search(input, newValue);
-          }
-        });
-
-        //table state -> view
-        scope.$watch(function () {
-          return ctrl.tableState().search;
-        }, function (newValue, oldValue) {
-          var predicateExpression = attr.stSearch || '$';
-          if (newValue.predicateObject && $parse(predicateExpression)(newValue.predicateObject) !== element[0].value) {
-            element[0].value = $parse(predicateExpression)(newValue.predicateObject) || '';
-          }
-        }, true);
-
-        // view -> table state
-        element.bind(event, function (evt) {
-          evt = evt.originalEvent || evt;
-          if (promise !== null) {
-            $timeout.cancel(promise);
-          }
-
-          promise = $timeout(function () {
-            tableCtrl.search(evt.target.value, attr.stSearch || '');
-            promise = null;
-          }, throttle);
-        });
-      }
-    };
-  }]);
-
-ng.module('smart-table')
-  .directive('stSelectRow', ['stConfig', function (stConfig) {
-    return {
-      restrict: 'A',
-      require: '^stTable',
-      scope: {
-        row: '=stSelectRow'
-      },
-      link: function (scope, element, attr, ctrl) {
-        var mode = attr.stSelectMode || stConfig.select.mode;
-        element.bind('click', function () {
-          scope.$apply(function () {
-            ctrl.select(scope.row, mode);
-          });
-        });
-
-        scope.$watch('row.isSelected', function (newValue) {
-          if (newValue === true) {
-            element.addClass(stConfig.select.selectedClass);
-          } else {
-            element.removeClass(stConfig.select.selectedClass);
-          }
-        });
-      }
-    };
-  }]);
-
-ng.module('smart-table')
   .directive('stSort', ['stConfig', '$parse', '$timeout', function (stConfig, $parse, $timeout) {
     return {
       restrict: 'A',
@@ -414,121 +339,42 @@ ng.module('smart-table')
   }]);
 
 ng.module('smart-table')
-  .directive('stPagination', ['stConfig', function (stConfig) {
+.directive('stSelectRowEx', ['stConfig', function(stConfig) {
     return {
-      restrict: 'EA',
-      require: '^stTable',
-      scope: {
-        stItemsByPage: '=?',
-        stDisplayedPages: '=?',
-        stPageChange: '&'
-      },
-      templateUrl: function (element, attrs) {
-        if (attrs.stTemplate) {
-          return attrs.stTemplate;
-        }
-        return stConfig.pagination.template;
-      },
-      link: function (scope, element, attrs, ctrl) {
-
-        scope.stItemsByPage = scope.stItemsByPage ? +(scope.stItemsByPage) : stConfig.pagination.itemsByPage;
-        scope.stDisplayedPages = scope.stDisplayedPages ? +(scope.stDisplayedPages) : stConfig.pagination.displayedPages;
-
-        scope.currentPage = 1;
-        scope.pages = [];
-
-        function redraw () {
-          var paginationState = ctrl.tableState().pagination;
-          var start = 1;
-          var end;
-          var i;
-          var prevPage = scope.currentPage;
-          scope.totalItemCount = paginationState.totalItemCount;
-          scope.currentPage = Math.floor(paginationState.start / paginationState.number) + 1;
-
-          start = Math.max(start, scope.currentPage - Math.abs(Math.floor(scope.stDisplayedPages / 2)));
-          end = start + scope.stDisplayedPages;
-
-          if (end > paginationState.numberOfPages) {
-            end = paginationState.numberOfPages + 1;
-            start = Math.max(1, end - scope.stDisplayedPages);
-          }
-
-          scope.pages = [];
-          scope.numPages = paginationState.numberOfPages;
-
-          for (i = start; i < end; i++) {
-            scope.pages.push(i);
-          }
-
-          if (prevPage !== scope.currentPage) {
-            scope.stPageChange({newPage: scope.currentPage});
-          }
-        }
-
-        //table state --> view
-        scope.$watch(function () {
-          return ctrl.tableState().pagination;
-        }, redraw, true);
-
-        //scope --> table state  (--> view)
-        scope.$watch('stItemsByPage', function (newValue, oldValue) {
-          if (newValue !== oldValue) {
-            scope.selectPage(1);
-          }
-        });
-
-        scope.$watch('stDisplayedPages', redraw);
-
-        //view -> table state
-        scope.selectPage = function (page) {
-          if (page > 0 && page <= scope.numPages) {
-            ctrl.slice((page - 1) * scope.stItemsByPage, scope.stItemsByPage);
-          }
-        };
-
-        if (!ctrl.tableState().pagination.number) {
-          ctrl.slice(0, scope.stItemsByPage);
-        }
-      }
-    };
-  }]);
-
-ng.module('smart-table')
-  .directive('stPipe', ['stConfig', '$timeout', function (config, $timeout) {
-    return {
-      require: 'stTable',
-      scope: {
-        stPipe: '='
-      },
-      link: {
-
-        pre: function (scope, element, attrs, ctrl) {
-
-          var pipePromise = null;
-
-          if (ng.isFunction(scope.stPipe)) {
-            ctrl.preventPipeOnWatch();
-            ctrl.pipe = function () {
-
-              if (pipePromise !== null) {
-                $timeout.cancel(pipePromise)
-              }
-
-              pipePromise = $timeout(function () {
-                scope.stPipe(ctrl.tableState(), ctrl);
-              }, config.pipe.delay);
-
-              return pipePromise;
-            }
-          }
+        restrict: 'A',
+        require: '^stTable',
+        scope: {
+            row: '=stSelectRow',
+            rowsSelected: '=?stSelectRowsSelected',
+            enabled: '=?stSelectEnabled'
         },
+        link: function(scope, element, attr, ctrl) {
+            var mode = attr.stSelectMode || stConfig.select.mode;
+            element.bind('click', function() {
+                scope.$apply(function() {
+                    if (scope.enabled === false)
+                        return;
+                    ctrl.select(scope.row, mode);
+                });
+            });
 
-        post: function (scope, element, attrs, ctrl) {
-          ctrl.pipe();
+            scope.$watch('row.isSelected', function(newValue) {
+                if (newValue === true) {
+                    element.addClass(stConfig.select.selectedClass);
+                    scope.rowsSelected && scope.rowsSelected.push(scope.row);
+                } else {
+                    element.removeClass(stConfig.select.selectedClass);
+                    //Care for IE8, it doesn't support indexOf. One possible solution can be define it in the Array prototype so it will be available in ie8 
+                    scope.rowsSelected && scope.rowsSelected.indexOf(scope.row) !== -1 && scope.rowsSelected.splice(scope.rowsSelected.indexOf(scope.row), 1);
+                }
+            });
+
+            scope.$watch('enabled', function(newValue) {
+                if (newValue === false)
+                    scope.row.isSelected = false;
+            });
+
         }
-      }
     };
-  }]);
-
+}]);
 })(angular);
